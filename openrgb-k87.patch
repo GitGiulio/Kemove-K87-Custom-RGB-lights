@@ -1,0 +1,31 @@
+diff --git a/Controllers/SinowealthController/SinowealthControllerDetect.cpp b/Controllers/SinowealthController/SinowealthControllerDetect.cpp
+index 989fcf1..b07d05f 100644
+--- a/Controllers/SinowealthController/SinowealthControllerDetect.cpp
++++ b/Controllers/SinowealthController/SinowealthControllerDetect.cpp
+@@ -425,7 +425,11 @@ DetectedControllers DetectSinowealthKeyboard10c(hid_device_info* info, const std
+ 
+         if(dev)
+         {
+-            if(sinowealth_10c_keyboards.find(model_id) != sinowealth_10c_keyboards.end())
++            // K87 support was verified only for this exact product string.
++            const bool kemove_identity_matches = model_id != 0x8E ||
++                (info->product_string && std::wstring(info->product_string) == L"KEMOVE K87-1980");
++
++            if(kemove_identity_matches && sinowealth_10c_keyboards.find(model_id) != sinowealth_10c_keyboards.end())
+             {
+                 SinowealthKeyboard10cController*     controller     = new SinowealthKeyboard10cController(dev, info->path, sinowealth_10c_keyboards.at(model_id).device_name);
+                 RGBController_SinowealthKeyboard10c* rgb_controller = new RGBController_SinowealthKeyboard10c(controller, model_id, [dev_path = reports.at(0).dev_path](){ SinowealthUnclaimDevice(dev_path); });
+diff --git a/Controllers/SinowealthController/SinowealthKeyboard10cController/SinowealthKeyboard10cDevices.cpp b/Controllers/SinowealthController/SinowealthKeyboard10cController/SinowealthKeyboard10cDevices.cpp
+index 1f74601..9172834 100644
+--- a/Controllers/SinowealthController/SinowealthKeyboard10cController/SinowealthKeyboard10cDevices.cpp
++++ b/Controllers/SinowealthController/SinowealthKeyboard10cController/SinowealthKeyboard10cDevices.cpp
+@@ -297,6 +297,9 @@ const keyboard_keymap_overlay_values kreo_swarm75_layout
+ |  DEVICE MODEL MAPPING                                                     |
+ \*-------------------------------------------------------------------------*/
+ const sinowealth_device_map sinowealth_10c_keyboards{
++    {
++        0x8E, { "KEMOVE K87-1980", aula_f87_layout },
++    },
+     {
+         0xBE, { "Kreo Swarm", kreo_swarm75_layout },
+     },
