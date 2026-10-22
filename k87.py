@@ -13,10 +13,19 @@ def verify_identity(response):
         raise ValueError('Unrecognized keyboard revision. Refusing lighting writes.')
 
 
-def encode_frame(colors):
+def validated_colors(colors):
+    colors = tuple(tuple(rgb) for rgb in colors)
     if len(colors) != 126 or any(len(rgb) != 3 or any(type(v) is not int or not 0 <= v <= 255 for v in rgb) for rgb in colors):
         raise ValueError('Expected 126 RGB slots with integer channels in 0..255')
+    return colors
+
+
+def _encode_colors(colors):
     return HEADER + bytes(v for rgb in colors for v in rgb) + bytes(134)
+
+
+def encode_frame(colors):
+    return _encode_colors(validated_colors(colors))
 
 
 class Info(c.Structure):
@@ -51,12 +60,16 @@ class Keyboard:
             function = getattr(self.api, name)
             function.argtypes, function.restype = args, result
         self.handle = None
+        self.cached_colors = None
+        self.cached_packet = None
 
     @property
     def is_open(self):
         return self.handle is not None
 
     def close(self):
+        self.cached_colors = None
+        self.cached_packet = None
         if self.handle:
             self.api.hid_close(self.handle)
             self.handle = None
@@ -114,4 +127,8 @@ class Keyboard:
     def send(self, colors):
         if not self.is_open:
             raise OSError('Keyboard disconnected')
-        self._write(encode_frame(colors))
+        colors = validated_colors(colors)
+        if colors != getattr(self, 'cached_colors', None):
+            self.cached_packet = _encode_colors(colors)
+            self.cached_colors = colors
+        self._write(self.cached_packet)

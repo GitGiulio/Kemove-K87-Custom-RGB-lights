@@ -1,0 +1,66 @@
+{
+  "brightness": 1.0,
+  "fps": 5,
+  "smoothing": 0.0,
+  "mode": "spatial",
+  "press_enabled": true,
+  "press_color": [
+    255,
+    0,
+    241
+  ],
+  "exceptions": {
+    "27": {
+      "mode": "screen",
+      "color": [
+        255,
+        0,
+        17
+      ]
+    },
+    "35": {
+      "mode": "screen",
+      "color": [
+        255,
+        0,
+        26
+      ]
+    },
+    "83": {
+      "mode": "fixed",
+      "color": [
+        0,
+        0,
+        255
+      ]
+    },
+    "96": {
+      "mode": "screen",
+      "color": [
+        0,
+        255,
+        14
+      ]
+    },
+    "97": {
+      "mode": "screen",
+      "color": [
+        255,
+        255,
+        255
+      ]
+    }
+  },
+  "notifications_enabled": true,
+  "notification_apps": {
+    "chatgpt": {
+      "enabled": true,
+      "key_index": 54,
+      "color": [
+        255,
+        0,
+        0
+      ]
+    }
+  }
+}

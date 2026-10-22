@@ -4,6 +4,7 @@ import json
 import math
 from pathlib import Path
 import threading
+from notification_blinker import APP_CATALOG
 
 FPS_STEPS = [0.125, 0.25, 0.5] + list(range(1, 31))
 ROOT = Path(__file__).resolve().parent
@@ -11,7 +12,10 @@ ROOT = Path(__file__).resolve().parent
 
 def defaults():
     return dict(brightness=.35, fps=10, smoothing=.08, mode='spatial',
-                press_enabled=False, press_color=[255, 255, 255], exceptions={})
+                press_enabled=False, press_color=[255, 255, 255], exceptions={},
+                notifications_enabled=False,
+                notification_apps={app: dict(enabled=True, key_index=info['key_index'], color=list(info['color']))
+                                   for app, info in APP_CATALOG.items()})
 
 
 def validate(value):
@@ -28,6 +32,19 @@ def validate(value):
             raise ValueError('Invalid RGB color')
     color(result['press_color'])
     valid_keys = {str(k['index']) for k in json.loads((ROOT / 'k87-layout.json').read_text(encoding='utf-8'))}
+    if type(result['notifications_enabled']) is not bool or not isinstance(result['notification_apps'], dict):
+        raise ValueError('Invalid notification settings')
+    apps = defaults()['notification_apps']
+    for app, rule in result['notification_apps'].items():
+        if not isinstance(app, str) or not isinstance(rule, dict):
+            raise ValueError('Invalid notification application')
+        merged = dict(apps.get(app, {}), **rule)
+        if (type(merged.get('enabled')) is not bool or type(merged.get('key_index')) is not int
+                or str(merged['key_index']) not in valid_keys):
+            raise ValueError('Invalid notification application settings')
+        color(merged.get('color'))
+        apps[app] = merged
+    result['notification_apps'] = apps
     if not isinstance(result['exceptions'], dict):
         raise ValueError('Invalid key exceptions')
     for index, rule in result['exceptions'].items():
@@ -44,15 +61,38 @@ class Settings:
         self.saved = validate(raw)
         self.current = deepcopy(self.saved)
         self.lock = threading.Lock()
+        self.condition = threading.Condition(self.lock)
+        self.revision = 0
 
     def get(self):
         with self.lock:
             return deepcopy(self.current)
 
+    def snapshot(self, last_revision=-1):
+        with self.lock:
+            return self.revision, deepcopy(self.current) if last_revision != self.revision else None
+
+    def read_flag(self, name):
+        if name not in ('press_enabled', 'notifications_enabled'):
+            raise ValueError('Expected a boolean settings flag')
+        with self.lock:
+            return self.revision, self.current[name]
+
+    def wait_for_change(self, revision, stop_event):
+        with self.condition:
+            self.condition.wait_for(lambda: self.revision != revision or stop_event.is_set())
+
+    def wake_waiters(self):
+        with self.condition:
+            self.condition.notify_all()
+
     def preview(self, value):
         value = validate(value)
-        with self.lock:
-            self.current = value
+        with self.condition:
+            if value != self.current:
+                self.current = value
+                self.revision += 1
+                self.condition.notify_all()
 
     def save(self):
         with self.lock:
@@ -62,5 +102,8 @@ class Settings:
             self.saved = deepcopy(self.current)
 
     def cancel(self):
-        with self.lock:
-            self.current = deepcopy(self.saved)
+        with self.condition:
+            if self.current != self.saved:
+                self.current = deepcopy(self.saved)
+                self.revision += 1
+                self.condition.notify_all()

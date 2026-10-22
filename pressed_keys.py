@@ -26,7 +26,7 @@ class PressedKeys:
     def run(self):
         held, expiry, mapping, previous_layout = set(), {}, {}, None
         while not self.stop.is_set():
-            enabled = self.settings.get()['press_enabled']
+            revision, enabled = self.settings.read_flag('press_enabled')
             now = time.monotonic()
             if enabled:
                 window = self.user.GetForegroundWindow()
@@ -49,4 +49,7 @@ class PressedKeys:
             with self.lock:
                 self.active = set(active)
             # ponytail: polling avoids a global hook; taps shorter than 8 ms can be missed.
-            self.stop.wait(.008 if enabled else .05)
+            if enabled:
+                self.stop.wait(.008)
+            else:
+                self.settings.wait_for_change(revision, self.stop)

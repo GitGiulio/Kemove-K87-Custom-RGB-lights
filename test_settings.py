@@ -25,7 +25,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_press_state_has_brief_visibility_and_no_history(self):
         stop = Mock(); stop.is_set.side_effect = [False, False, False, True]
-        settings = Mock(); settings.get.return_value = {'press_enabled':True}
+        settings = Mock(); settings.read_flag.return_value = (0, True)
         presses = PressedKeys([{'index':0, 'scan':1}], settings, stop)
         presses.user = Mock()
         presses.user.GetKeyboardLayout.return_value = 1
@@ -39,7 +39,7 @@ class SettingsTests(unittest.TestCase):
 
     def test_disabled_overlay_never_queries_key_state(self):
         stop = Mock(); stop.is_set.side_effect = [False, True]
-        settings = Mock(); settings.get.return_value = {'press_enabled':False}
+        settings = Mock(); settings.read_flag.return_value = (0, False)
         presses = PressedKeys(load_layout(), settings, stop)
         presses.user = Mock()
         presses.run()

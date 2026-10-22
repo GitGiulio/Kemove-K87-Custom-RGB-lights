@@ -1,7 +1,6 @@
 # List of improvements to implement still
-[] The new version is incomplete, but there is the version without GUI in the backup folder
-[] Allow use also via bluetooth and wifi-dongle
-[] Trakmania mode
-[] Performance optimization
-[] Notifications?? maybe for telegram && agents
-[] Startup animation, like a G or smthng
+- [_] Trakmania mode
+- [_] MORE Performance optimization
+- [X] Notifications?? maybe for telegram && agents
+- [_] Startup animation, like a G or smthng
+- [_] move hidapi-hotplug.dll file in the repository so that OpenRGB is not required anymore 

@@ -1,0 +1,16 @@
+# Execution ledger: 2026-10-22-chatgpt-notification-blinker.md
+
+- Baseline: 17 existing unittest cases pass. This folder has no Git checkout, so changes are made in place without commits or worktrees.
+- Capture proof: unsandboxed Python WinRT listener access Allowed; seven actual ChatGPT notification metadata records returned under OpenAI.Codex_2p2nqsd0c76g0!App. No message content accessed.
+- Ruling: use snapshot polling because live NotificationChanged subscription fails with HRESULT 0x80070490. User subsequently requested 10-second notification queries and 1-second foreground monitoring; those are the implemented intervals. Cost: notifications created and removed between polls or focus visits shorter than the monitor interval can be missed. No packaged helper needed on this machine.
+- Pre-flight: settings -> alert state -> frame overlay share stable app IDs, LED indices, and RGB tuples. Tk requests access on its UI thread, worker owns alert state, rendering consumes locked snapshots.
+- Ruling: production source uses async polling and independent 1-second foreground ticks in one worker event loop; slow notification queries do not block foreground checks. Cost: adds a small async task lifecycle.
+- Tasks 1-4 implemented: source access/capture, alert state, Win32 foreground detection, configuration migration, reusable GUI rows, and frame composition. Runtime state is shared under a lock; rendering can apply configuration changes immediately, including enable epochs.
+- Red/green: first new test run failed because notification module did not exist, then 13 tests passed; permission-revoked-during-query test failed then passed after post-query access recheck; between-ticks-disable/re-enable test failed then passed after shared configuration synchronization.
+- Full suite: 40 tests pass, including real Tk GUI controls and independent synthetic catalog row.
+- Native smoke test outside sandbox: seven supported metadata records captured, access button path returned Allowed, service reached Connected, baseline did not blink, worker stopped cleanly.
+- Final independent review identified first-query loss of fresh notifications and transient-query-failure clearing. Each fix was preceded by a failing regression and followed by a green full suite.
+- Ruling: timestamp-based enable boundaries reject old notifications while allowing fresh notifications in the first query, instead of dropping that query wholesale. Cost: relies on Windows notification creation timestamps and the system wall clock agreeing.
+- Ruling: transient query failures preserve an existing pending alert. Permission loss still clears it and recovery establishes a new baseline. This refines the plan's source-failure behavior to honor the user's foreground acknowledgement requirement. Cost: alerts can continue while the source is temporarily unreachable.
+- GUI preview visually checked at current scaling. All 19 observed ChatGPT windows matched the configured AUMID without reading titles or changing focus.
+- Implementation and automated/native verification complete. Physical new-notification/F8/foreground confirmation, increased display scaling, and live sleep/reconnect remain manual checks. The pre-existing tray process was left running; restart it to load this code. Notification master defaults off and saved user settings were not changed.

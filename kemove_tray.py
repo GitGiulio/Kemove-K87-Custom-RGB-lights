@@ -15,6 +15,7 @@ import pystray
 from kemove_rgb import main as run_lighting, load_layout
 from settings import Settings
 from settings_ui import SettingsWindow
+from notification_blinker import NotificationService
 
 ROOT = Path(__file__).resolve().parent
 RUN_KEY = r'Software\Microsoft\Windows\CurrentVersion\Run'
@@ -63,11 +64,13 @@ def main():
     root = tk.Tk()
     root.withdraw()
     stop = threading.Event()
+    notifications = NotificationService(settings, stop)
     events = queue.Queue()
     dialog = None
 
     def quit_app(icon, item):
         stop.set()
+        settings.wake_waiters()
         events.put(('quit', None))
 
     def open_settings(icon, item):
@@ -87,12 +90,13 @@ def main():
 
     def worker():
         try:
-            run_lighting(stop_event=stop, status=status, settings=settings)
+            run_lighting(stop_event=stop, status=status, settings=settings, notifications=notifications)
         except Exception as exc:
             logging.exception('Lighting stopped')
             events.put(('error', str(exc)))
         finally:
             stop.set()
+            settings.wake_waiters()
             events.put(('quit', None))
 
     thread = threading.Thread(target=worker, name='K87 lighting')
@@ -107,7 +111,8 @@ def main():
             action, detail = events.get_nowait()
             if action == 'settings' and not stop.is_set():
                 if dialog is None or not dialog.winfo_exists():
-                    dialog = SettingsWindow(root, settings, load_layout(), startup_enabled, set_startup)
+                    dialog = SettingsWindow(root, settings, load_layout(), startup_enabled, set_startup,
+                                            notifications=notifications)
                 dialog.deiconify(); dialog.lift(); dialog.focus_force()
             elif action == 'startup':
                 try:
@@ -132,6 +137,7 @@ def main():
         root.mainloop()
     finally:
         stop.set()
+        settings.wake_waiters()
         icon.stop()
         if thread.ident is not None:
             thread.join()

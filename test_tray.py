@@ -26,7 +26,7 @@ class TrayTests(unittest.TestCase):
             stop.set()
             return [(0, 0, 0)] * 126
 
-        with patch('sys.argv', ['kemove_rgb.py']), patch.object(kemove_rgb.ctypes, 'get_last_error', return_value=0), patch.object(kemove_rgb, 'Keyboard', return_value=keyboard), patch.object(kemove_rgb.FrameEngine, 'frame', side_effect=frame):
+        with patch('sys.argv', ['kemove_rgb.py']), patch.object(kemove_rgb.ctypes, 'get_last_error', return_value=0), patch.object(kemove_rgb, 'Keyboard', return_value=keyboard), patch.object(kemove_rgb.FrameEngine, 'render', side_effect=frame), patch.object(kemove_rgb.FrameEngine, 'advance'):
             self.assertEqual(kemove_rgb.main(stop_event=stop, status=Mock()), 0)
         keyboard.close.assert_called_once()
 

@@ -1,0 +1,45 @@
+{
+  "size": [
+    2560,
+    1440
+  ],
+  "repeats": 5,
+  "configuration": {
+    "fps": 5,
+    "mode": "average",
+    "smoothing": 0.0,
+    "press_enabled": true
+  },
+  "settings_get": {
+    "cpu_ms": 0.042969,
+    "wall_ms": 0.04367
+  },
+  "image_average": {
+    "cpu_ms": 8.59375,
+    "wall_ms": 9.20932
+  },
+  "image_spatial": {
+    "cpu_ms": 9.765625,
+    "wall_ms": 9.813875
+  },
+  "unchanged_frame_fps_5": {
+    "cpu_ms": 0.25,
+    "wall_ms": 0.252729
+  },
+  "unchanged_frame_fps_30": {
+    "cpu_ms": 0.25,
+    "wall_ms": 0.25295
+  },
+  "resampled_static_frame": {
+    "cpu_ms": 0.265625,
+    "wall_ms": 0.277568
+  },
+  "encode_frame": {
+    "cpu_ms": 0.148438,
+    "wall_ms": 0.148959
+  },
+  "send_unchanged_fake_transport": {
+    "cpu_ms": 0.160156,
+    "wall_ms": 0.160341
+  }
+}

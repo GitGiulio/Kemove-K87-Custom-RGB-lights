@@ -25,13 +25,14 @@ def load_layout():
 def colors_from_image(image, layout, brightness, mode):
     if not 0 <= brightness <= 1:
         raise ValueError('Brightness must be between 0 and 1')
+    image = image if image.mode == 'RGB' else image.convert('RGB')
     if mode == 'average':
-        rgb = image.convert('RGB').resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
+        rgb = image.resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
         return [tuple(round(v * brightness) for v in rgb)] * 126
     if mode != 'spatial':
         raise ValueError('Mode must be spatial or average')
     # ponytail: 60x20 is enough for 87 LEDs; use GPU capture only if measured CPU usage warrants it.
-    small = image.convert('RGB').resize((60, 20), Image.Resampling.BOX)
+    small = image.resize((60, 20), Image.Resampling.BOX)
     colors = [(0, 0, 0)] * 126
     for key in layout:
         rgb = small.getpixel((round(key['x'] * 59), round(key['y'] * 19)))
@@ -68,8 +69,16 @@ class FrameEngine:
         self.capture_options = None
         self.previous = None
         self.previous_time = None
+        self.target_key = None
+        self.target = None
+        self.base_key = None
+        self.base = ()
 
-    def frame(self, now, options, pressed):
+    def frame(self, now, options, pressed, notifications=None):
+        self.advance(now, options)
+        return self.render(options, pressed, notifications)
+
+    def advance(self, now, options):
         capture_options = (options['fps'], options['mode'])
         if self.sample is None or now >= self.next_capture or capture_options != self.capture_options:
             self.sample = colors_from_image(self.capture(), self.layout, 1, options['mode'])
@@ -79,23 +88,40 @@ class FrameEngine:
             else:
                 self.next_capture += (math.floor((now - self.next_capture) / period) + 1) * period
             self.capture_options = capture_options
-        target = [tuple(v * options['brightness'] for v in rgb) for rgb in self.sample]
+        target_key = (self.sample, options['brightness'])
+        if target_key != self.target_key:
+            self.target = [tuple(v * options['brightness'] for v in rgb) for rgb in self.sample]
+            self.target_key = target_key
         elapsed = max(0, now - self.previous_time) if self.previous_time is not None else 0
-        self.previous = smooth_colors(self.previous, target, elapsed, options['smoothing'])
+        self.previous = smooth_colors(self.previous, self.target, elapsed, options['smoothing'])
         self.previous_time = now
+
+    def _base_colors(self, options):
         colors = [tuple(round(v) for v in rgb) for rgb in self.previous]
         for index, rule in options['exceptions'].items():
             if rule['mode'] == 'off':
                 colors[int(index)] = (0, 0, 0)
             elif rule['mode'] == 'fixed':
                 colors[int(index)] = tuple(round(v * options['brightness']) for v in rule['color'])
+        return tuple(colors)
+
+    def render(self, options, pressed, notifications=None):
+        exceptions = tuple(sorted((index, rule['mode'], tuple(rule['color']))
+                                  for index, rule in options['exceptions'].items()))
+        base_key = (self.previous, options['brightness'], exceptions)
+        if options['smoothing'] != 0 or self.base_key != base_key:
+            self.base = self._base_colors(options)
+            self.base_key = base_key
+        colors = list(self.base)
         if options['press_enabled']:
             for index in pressed:
                 colors[index] = tuple(options['press_color'])
+        for index, color in (notifications or {}).items():
+            colors[index] = tuple(color)
         return colors
 
 
-def main(stop_event=None, status=print, settings=None):
+def main(stop_event=None, status=print, settings=None, notifications=None):
     stop_event = stop_event or threading.Event()
     settings = settings or Settings()
     parser = argparse.ArgumentParser(description=__doc__)
@@ -134,10 +160,13 @@ def main(stop_event=None, status=print, settings=None):
 
     keyboard = None
     presses = None
+    from notification_blinker import NotificationService
+    notifications = notifications or NotificationService(settings, stop_event)
     frames = 0
     started = time.monotonic()
     waiting = False
     next_output = 0
+    options_revision = -1
     try:
         # Match capture coordinates to physical pixels on displays with scaling.
         ctypes.windll.user32.SetProcessDPIAware()
@@ -148,6 +177,7 @@ def main(stop_event=None, status=print, settings=None):
         from pressed_keys import PressedKeys
         presses = PressedKeys(layout, settings, stop_event)
         presses.thread.start()
+        notifications.thread.start()
         status('KEMOVE RGB: starting lighting.')
         while not stop_event.is_set() and (not args.seconds or time.monotonic() - started < args.seconds):
             tick = time.monotonic()
@@ -155,10 +185,13 @@ def main(stop_event=None, status=print, settings=None):
                 was_open = keyboard.is_open
                 if not was_open:
                     keyboard.open()
-                options = settings.get()
-                colors = engine.frame(tick, options, presses.get())
+                options_revision, updated = settings.snapshot(options_revision)
+                if updated is not None:
+                    options = updated
+                engine.advance(tick, options)
                 output_fps = max(10, options['fps'], 30 if options['press_enabled'] else 0)
                 if tick >= next_output:
+                    colors = engine.render(options, presses.get(), notifications.overlay(tick, options, options_revision))
                     keyboard.send(colors)
                     frames += 1
                     next_output = tick + 1 / output_fps
@@ -182,8 +215,11 @@ def main(stop_event=None, status=print, settings=None):
         pass
     finally:
         stop_event.set()
+        settings.wake_waiters()
         if presses and presses.thread.ident is not None:
             presses.thread.join()
+        if notifications.thread.ident is not None:
+            notifications.thread.join()
         if keyboard:
             keyboard.close()
         kernel.CloseHandle(mutex)
