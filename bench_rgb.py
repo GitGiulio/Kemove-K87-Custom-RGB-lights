@@ -7,7 +7,8 @@ import time
 from pathlib import Path
 from unittest.mock import Mock
 
-from PIL import Image, ImageGrab
+from PIL import Image
+from screen_capture import ScreenCapture
 from kemove_rgb import FrameEngine, colors_from_image, load_layout
 from k87 import Keyboard, encode_frame
 from settings import Settings
@@ -39,9 +40,8 @@ def main():
         store.preview(options)
         results['configuration'] = {k: options[k] for k in ('fps', 'mode', 'smoothing', 'press_enabled')}
         results['settings_get'] = measure(store.get, 4000)
-        if hasattr(store, 'snapshot'):
-            revision, _ = store.snapshot()
-            results['settings_snapshot_unchanged'] = measure(lambda: store.snapshot(revision), 1000000)
+        revision, _ = store.snapshot()
+        results['settings_snapshot_unchanged'] = measure(lambda: store.snapshot(revision), 1000000)
         for mode in ('average', 'spatial'):
             results[f'image_{mode}'] = measure(lambda: colors_from_image(image, layout, 1, mode), 40)
         for fps in (options['fps'], 30):
@@ -68,7 +68,23 @@ def main():
         keyboard._write = Mock()
         results['send_unchanged_fake_transport'] = measure(lambda: keyboard.send(colors), 4000)
         if args.capture:
-            results['native_capture'] = measure(ImageGrab.grab, 10)
+            capture = ScreenCapture()
+            try:
+                for _ in range(3):
+                    capture(); time.sleep(.2)
+                if capture.available is not True:
+                    raise RuntimeError('Native capture unavailable; refusing to benchmark retained colors')
+                cpu, wall = time.process_time(), time.perf_counter()
+                for _ in range(30):
+                    colors_from_image(capture(), layout, 1, options['mode'])
+                    if capture.available is not True:
+                        raise RuntimeError('Native capture failed during benchmark')
+                    time.sleep(.2)
+                results['native_capture_and_reduce'] = dict(backend='MSS', frames=30,
+                    cpu_ms_per_frame=round((time.process_time()-cpu)*1000/30, 3),
+                    elapsed_s=round(time.perf_counter()-wall, 3))
+            finally:
+                capture.close()
     print(json.dumps(results, indent=2))
 
 

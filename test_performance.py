@@ -105,7 +105,7 @@ class SchedulingTests(unittest.TestCase):
                  patch.object(kemove_rgb, 'Keyboard', return_value=keyboard), \
                  patch('pressed_keys.PressedKeys', return_value=presses), \
                  patch.object(kemove_rgb.time, 'monotonic', side_effect=lambda: clock[0]), \
-                 patch.object(kemove_rgb.ImageGrab, 'grab', return_value=Image.new('RGB',(60,20))), \
+                 patch.object(kemove_rgb, 'ScreenCapture', return_value=Mock(return_value=Image.new('RGB',(60,20)))), \
                  patch.object(FrameEngine, 'render', autospec=True, wraps=FrameEngine.render) as render:
                 # autospec+wraps returns a mock; these checks concern loop scheduling, not pixels.
                 kemove_rgb.main(stop_event=stop, settings=store, status=Mock(), notifications=notifications)

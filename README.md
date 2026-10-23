@@ -7,7 +7,7 @@ It runs in the background without a console window. Open Settings from the tray 
 ## Requirements
 
 - **KEMOVE K87**, connected by USB in wired mode. Other models and device revisions are not verified; the app checks the keyboard identity before controlling it.
-- **Windows** and **64-bit Python 3.12+**, with Tkinter installed. Tkinter is included in the standard Windows Python installer.
+- **Windows 10/11** and **64-bit Python 3.12–3.14**, with Tkinter installed. Tkinter is included in the standard Windows Python installer.
 - **64-bit OpenRGB**, installed at `C:\Program Files\OpenRGB`. The app uses its `hidapi-hotplug.dll`; OpenRGB does not need to be running or detect the keyboard.
 
 Bluetooth and wireless connections are not supported. Close other programs that are actively controlling the keyboard's lighting.
@@ -102,7 +102,11 @@ Command-line options override saved lighting values for that session. For exampl
 .\.venv\Scripts\python.exe .\kemove_rgb.py --brightness 0.6 --fps 15 --smoothing 0.15
 ```
 
-The primary monitor is used by default. To capture another monitor or a region, pass its desktop pixel coordinates as left, top, right, bottom:
+Screen capture uses **MSS** at your selected refresh rate, without the Windows Graphics Capture yellow border. Raw screen pixels are reduced to the keyboard sampling grid before RGB conversion, avoiding a full-resolution color conversion. Pillow remains required for this reduction and the tray icon.
+
+The app releases capture resources on Quit. If the desktop cannot be captured, it retains the last screen colors and retries after two seconds while key effects and USB keepalives continue. Startup uses a dark base until a frame is available. Capture availability changes are recorded in `kemove-rgb.log`.
+
+To capture another monitor or a region, pass its desktop pixel coordinates as left, top, right, bottom:
 
 ```powershell
 .\.venv\Scripts\pythonw.exe .\kemove_tray.py --region 1920 0 3840 1080
@@ -136,8 +140,6 @@ Run the regression tests with:
 .\.venv\Scripts\python.exe -m unittest -v
 ```
 
-See [VALIDATION.md](VALIDATION.md) for testing details and [RESEARCH.md](RESEARCH.md) for the keyboard protocol investigation.
+See [VALIDATION.md](VALIDATION.md) for current verification results and remaining manual checks.
 
-For CPU/wall-time microbenchmarks without keyboard writes, run `.\.venv\Scripts\python.exe bench_rgb.py`. Add `--capture` to measure native screen capture in memory; images are not saved. Component timings are not a measurement of the whole tray app's CPU usage.
-
-An experimental [OpenRGB source patch](openrgb-k87.patch) is included separately. It is not required to use this app and has not been compiled and validated as an OpenRGB build. See [OPENRGB_BUILD.md](OPENRGB_BUILD.md) for its status and build instructions.
+For CPU/wall-time microbenchmarks without keyboard writes, run `.\.venv\Scripts\python.exe bench_rgb.py`. Add `--capture` to measure native screen capture in memory; images are not saved. Capture measurements report the backend used. Component timings are not a measurement of the whole tray app's CPU usage.

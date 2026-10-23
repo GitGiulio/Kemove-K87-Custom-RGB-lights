@@ -1,5 +1,6 @@
 Pillow==12.3.0
 pystray==0.19.5
+mss==10.2.0
 winrt-runtime==3.2.1; sys_platform == 'win32'
 winrt-Windows.Foundation==3.2.1; sys_platform == 'win32'
 winrt-Windows.Foundation.Collections==3.2.1; sys_platform == 'win32'

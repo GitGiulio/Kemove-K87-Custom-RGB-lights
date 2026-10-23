@@ -1,7 +1,6 @@
 import unittest
-from unittest.mock import Mock
 from PIL import Image
-from kemove_rgb import colors_from_image, load_layout, smooth_colors, stream_step
+from kemove_rgb import colors_from_image, load_layout, smooth_colors
 from k87 import encode_frame, verify_identity, EXPECTED_IDENTITY
 
 
@@ -50,26 +49,6 @@ class Tests(unittest.TestCase):
         for _ in range(1000):
             state = smooth_colors(state, [(0, 0, 0)] * 126, 0.05, 2)
         self.assertTrue(all(round(v) == 0 for rgb in state for v in rgb))
-
-    def test_failed_write_closes_connection_and_next_step_reopens(self):
-        keyboard = Mock()
-        keyboard.is_open = True
-        keyboard.send.side_effect = [OSError('unplugged'), None]
-        image = Image.new('RGB', (30, 20))
-        with self.assertRaises(OSError):
-            stream_step(keyboard, lambda: image, load_layout(), 0.35, 'spatial', None, 0.1, 0)
-        keyboard.close.assert_called_once()
-        keyboard.is_open = False
-        stream_step(keyboard, lambda: image, load_layout(), 0.35, 'spatial', None, 0.1, 0)
-        keyboard.open.assert_called_once()
-
-    def test_capture_failure_releases_keyboard(self):
-        keyboard = Mock()
-        keyboard.is_open = True
-        with self.assertRaises(OSError):
-            stream_step(keyboard, Mock(side_effect=OSError('locked')), load_layout(), 1, 'spatial', None, 0.1, 0)
-        keyboard.close.assert_called_once()
-        keyboard.send.assert_not_called()
 
 
 if __name__ == '__main__':

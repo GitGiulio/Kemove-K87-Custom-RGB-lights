@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 import time
 import threading
-from PIL import Image, ImageGrab
+from screen_capture import ScreenCapture, rgb_sample
 from k87 import Keyboard
 from settings import Settings
 
@@ -25,14 +25,13 @@ def load_layout():
 def colors_from_image(image, layout, brightness, mode):
     if not 0 <= brightness <= 1:
         raise ValueError('Brightness must be between 0 and 1')
-    image = image if image.mode == 'RGB' else image.convert('RGB')
     if mode == 'average':
-        rgb = image.resize((1, 1), Image.Resampling.BOX).getpixel((0, 0))
+        rgb = rgb_sample(image, (1, 1)).getpixel((0, 0))
         return [tuple(round(v * brightness) for v in rgb)] * 126
     if mode != 'spatial':
         raise ValueError('Mode must be spatial or average')
-    # ponytail: 60x20 is enough for 87 LEDs; use GPU capture only if measured CPU usage warrants it.
-    small = image.resize((60, 20), Image.Resampling.BOX)
+    # 60x20 preserves the existing spatial sampling for all 87 LEDs.
+    small = rgb_sample(image, (60, 20))
     colors = [(0, 0, 0)] * 126
     for key in layout:
         rgb = small.getpixel((round(key['x'] * 59), round(key['y'] * 19)))
@@ -45,19 +44,6 @@ def smooth_colors(previous, target, elapsed, smoothing):
         return target
     alpha = 1 - math.exp(-elapsed / smoothing)
     return [tuple(a + alpha * (b - a) for a, b in zip(old, new)) for old, new in zip(previous, target)]
-
-
-def stream_step(keyboard, capture, layout, brightness, mode, previous, elapsed, smoothing):
-    try:
-        if not keyboard.is_open:
-            keyboard.open()
-        colors = colors_from_image(capture(), layout, brightness, mode)
-        colors = smooth_colors(previous, colors, elapsed, smoothing)
-        keyboard.send([tuple(round(value) for value in rgb) for rgb in colors])
-        return colors
-    except OSError:
-        keyboard.close()
-        raise
 
 
 class FrameEngine:
@@ -159,6 +145,7 @@ def main(stop_event=None, status=print, settings=None, notifications=None):
         return 1
 
     keyboard = None
+    capture = None
     presses = None
     from notification_blinker import NotificationService
     notifications = notifications or NotificationService(settings, stop_event)
@@ -172,7 +159,7 @@ def main(stop_event=None, status=print, settings=None, notifications=None):
         ctypes.windll.user32.SetProcessDPIAware()
         keyboard = Keyboard(args.hid_dll)
         layout = load_layout()
-        capture = lambda: ImageGrab.grab(bbox=tuple(args.region) if args.region else None, all_screens=bool(args.region))
+        capture = ScreenCapture(args.region)
         engine = FrameEngine(capture, layout)
         from pressed_keys import PressedKeys
         presses = PressedKeys(layout, settings, stop_event)
@@ -220,6 +207,8 @@ def main(stop_event=None, status=print, settings=None, notifications=None):
             presses.thread.join()
         if notifications.thread.ident is not None:
             notifications.thread.join()
+        if capture is not None:
+            capture.close()
         if keyboard:
             keyboard.close()
         kernel.CloseHandle(mutex)

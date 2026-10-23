@@ -21,14 +21,16 @@ class TrayTests(unittest.TestCase):
     def test_quit_signal_releases_keyboard(self):
         stop = threading.Event()
         keyboard = Mock()
+        capture = Mock()
 
         def frame(*args):
             stop.set()
             return [(0, 0, 0)] * 126
 
-        with patch('sys.argv', ['kemove_rgb.py']), patch.object(kemove_rgb.ctypes, 'get_last_error', return_value=0), patch.object(kemove_rgb, 'Keyboard', return_value=keyboard), patch.object(kemove_rgb.FrameEngine, 'render', side_effect=frame), patch.object(kemove_rgb.FrameEngine, 'advance'):
+        with patch('sys.argv', ['kemove_rgb.py']), patch.object(kemove_rgb.ctypes, 'get_last_error', return_value=0), patch.object(kemove_rgb, 'Keyboard', return_value=keyboard), patch.object(kemove_rgb, 'ScreenCapture', return_value=capture), patch.object(kemove_rgb.FrameEngine, 'render', side_effect=frame), patch.object(kemove_rgb.FrameEngine, 'advance'):
             self.assertEqual(kemove_rgb.main(stop_event=stop, status=Mock()), 0)
         keyboard.close.assert_called_once()
+        capture.close.assert_called_once()
 
 
 if __name__ == '__main__':
